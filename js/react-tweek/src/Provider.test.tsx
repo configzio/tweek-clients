@@ -1,26 +1,10 @@
+jest.mock('./getTweekLocalCache');
+
 import React, { Component } from 'react';
 import PropTypes from 'prop-types';
 import TestUtils from 'react-dom/test-utils';
 import Provider, { createProvider } from './Provider';
-
-const repositoryMock: any = {
-  prepare: jest.fn(),
-  get: jest.fn(),
-  refresh: jest.fn(),
-};
-
-jest.mock('tweek-client', () => {
-  const createTweekClient = jest.fn();
-  return { createTweekClient };
-});
-jest.mock('tweek-local-cache', () => {
-  const tweekLocalCacheMock = jest.fn(() => ({
-    prepare: jest.fn(),
-    get: jest.fn(),
-    refresh: jest.fn(),
-  }));
-  return { default: tweekLocalCacheMock };
-});
+import getTweekLocalCacheMock from './getTweekLocalCache';
 
 const createChild = (repoKey = 'tweekRepo') => {
   return class extends Component {
@@ -36,8 +20,16 @@ const createChild = (repoKey = 'tweekRepo') => {
 
 describe('Provider', () => {
   const Child = createChild();
-  const { createTweekClient: createTweekClientMock } = require('tweek-client');
-  const { default: tweekLocalCacheMock } = require('tweek-local-cache');
+
+  const repositoryMock: any = {
+    prepare: jest.fn(),
+    get: jest.fn(),
+    refresh: jest.fn(),
+  };
+
+  beforeEach(() => {
+    (getTweekLocalCacheMock as jest.Mock).mockReturnValue(repositoryMock);
+  });
 
   it('should add the store to the child context', () => {
     const tree = TestUtils.renderIntoDocument(
@@ -65,24 +57,28 @@ describe('Provider', () => {
   });
 
   it('should create a repository if client is passed', () => {
-    TestUtils.renderIntoDocument(
-      <Provider client={repositoryMock}>
+    const client: any = 'come client';
+    const tree = TestUtils.renderIntoDocument(
+    <Provider client={client}>
         <Child />
       </Provider>,
     );
+    const child = TestUtils.findRenderedComponentWithType(tree, Child);
 
-    expect(tweekLocalCacheMock).toBeCalled();
+    expect(getTweekLocalCacheMock).toBeCalledWith({client});
+    expect(child.context.tweekRepo).toBe(repositoryMock);
   });
 
   it('should create client and repository if baseServiceUrl is passed', () => {
     const baseServiceUrl = 'someUrl';
-    TestUtils.renderIntoDocument(
+    const tree = TestUtils.renderIntoDocument(
       <Provider baseServiceUrl={baseServiceUrl}>
         <Child />
       </Provider>,
     );
+    const child = TestUtils.findRenderedComponentWithType(tree, Child);
 
-    expect(createTweekClientMock).toBeCalledWith({ baseServiceUrl });
-    expect(tweekLocalCacheMock).toBeCalled();
+    expect(getTweekLocalCacheMock).toBeCalledWith({baseServiceUrl});
+    expect(child.context.tweekRepo).toBe(repositoryMock);
   });
 });
