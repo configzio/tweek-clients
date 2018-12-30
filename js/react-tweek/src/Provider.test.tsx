@@ -3,7 +3,7 @@ import PropTypes from 'prop-types';
 import TestUtils from 'react-dom/test-utils';
 import Provider, { createProvider } from './Provider';
 
-const repositoryMock = {
+const repositoryMock: any = {
   prepare: jest.fn(),
   get: jest.fn(),
   refresh: jest.fn(),

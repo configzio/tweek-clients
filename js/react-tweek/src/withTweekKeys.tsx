@@ -2,20 +2,32 @@ import React, { Component } from 'react';
 import { camelize } from 'humps';
 import PropTypes from 'prop-types';
 import isEqual from 'lodash.isequal';
+import { GetPolicy } from 'tweek-local-cache';
+
+export type WithTweekKeysOptions = {
+  mergeProps?: boolean;
+  propName?: string;
+  onError?: (error: Error) => void;
+  repoKey?: string;
+  getPolicy?: GetPolicy
+  once?: boolean;
+  initialValue?: any;
+}
 
 export default (
-  path,
-  { mergeProps = true, propName, onError, repoKey = 'tweekRepo', getPolicy, once, initialValue } = {},
+  path: string,
+  { mergeProps = true, propName, onError, repoKey = 'tweekRepo', getPolicy, once, initialValue }: WithTweekKeysOptions = {},
 ) => EnhancedComponent => {
   const isScanKey = path.split('/').pop() === '_';
 
-  return class extends Component {
+  return class extends Component<{}, {tweekProps: any}> {
     static displayName = `withTweekKeys(${EnhancedComponent.displayName || EnhancedComponent.name || 'Component'})`;
     static contextTypes = {
       [repoKey]: PropTypes.object,
     };
 
-    state = {};
+    state = {tweekProps: undefined};
+    subscription: ZenObservable.Subscription | null = null;
 
     componentWillMount() {
       if (initialValue !== undefined) {
@@ -46,7 +58,7 @@ export default (
       this.subscription = null;
     }
 
-    setTweekValue = (result = {}) => {
+    setTweekValue = (result: any = {}) => {
       let tweekProps;
 
       if (isScanKey) {

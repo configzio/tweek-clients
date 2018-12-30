@@ -1,8 +1,12 @@
-/* global describe, beforeEach, test, expect, jest */
 import React from 'react';
 import renderer from 'react-test-renderer';
 import Provider from './Provider';
-import withTweekKeys from './withTweekKeys';
+import withTweekKeys, { WithTweekKeysOptions } from './withTweekKeys';
+
+type MockRepoOptions = {
+  results?: any[];
+  error?: any;
+}
 
 describe('withTweekKeys', () => {
   const value = 'someValue';
@@ -10,7 +14,7 @@ describe('withTweekKeys', () => {
   let subscribeMock;
   let unsubscribeMock;
 
-  const mockRepository = ({ results, error } = {}) => {
+  const mockRepository = ({ results, error }: MockRepoOptions = {}) => {
     unsubscribeMock = jest.fn();
     subscribeMock = jest.fn((onNext, onError) => {
       const subscription = { unsubscribe: unsubscribeMock };
@@ -34,11 +38,11 @@ describe('withTweekKeys', () => {
     observeMock = jest.fn().mockReturnValue({ subscribe: subscribeMock });
   };
 
-  const renderComponent = async (path, config) => {
+  const renderComponent = async (path: string, config?: WithTweekKeysOptions) => {
     const withTweekKeysHoc = withTweekKeys(path, config);
     const Component = withTweekKeysHoc('div');
     const component = renderer.create(
-      <Provider repo={{ observe: observeMock }}>
+      <Provider repo={{ observe: observeMock } as any}>
         <Component />
       </Provider>,
     );
@@ -250,7 +254,7 @@ describe('withTweekKeys', () => {
   });
 
   test('with error handler', async () => {
-    let error = null;
+    let error: Error|null = null;
     let expectedError = 'test error';
     const path = 'path/someKey';
     mockRepository({ error: expectedError });
@@ -263,7 +267,7 @@ describe('withTweekKeys', () => {
 
   test('with getPolicy', async () => {
     const path = 'path/someKey';
-    const getPolicy = 'somePolicy';
+    const getPolicy: any = 'somePolicy';
     mockRepository({ results: [{ value }] });
 
     await renderComponent(path, { getPolicy });
