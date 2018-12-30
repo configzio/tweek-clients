@@ -1,8 +1,11 @@
 import React, { Component } from 'react';
 import { camelize } from 'humps';
 import PropTypes from 'prop-types';
-import isEqual from 'lodash.isequal';
 import { GetPolicy } from 'tweek-local-cache';
+import withTweekKeysConsumer, {
+  UnsubscribeProps,
+  WithTweekKeysConsumerOptions,
+} from './withTweekKeysConsumer';
 
 export type WithTweekKeysOptions = {
   mergeProps?: boolean;
@@ -17,67 +20,51 @@ export type WithTweekKeysOptions = {
 export default (
   path: string,
   { mergeProps = true, propName, onError, repoKey = 'tweekRepo', getPolicy, once, initialValue }: WithTweekKeysOptions = {},
-) => EnhancedComponent => {
+) => BaseComponent => {
   const isScanKey = path.split('/').pop() === '_';
+  const options: WithTweekKeysConsumerOptions = { onError, getPolicy};
+  const keysMapping = {_tweekProps: {path, initialValue}};
+  const enhance = withTweekKeysConsumer(keysMapping, options);
 
-  return class extends Component<{}, {tweekProps: any}> {
-    static displayName = `withTweekKeys(${EnhancedComponent.displayName || EnhancedComponent.name || 'Component'})`;
+  type Props = UnsubscribeProps & {_tweekProps: any};
+
+  class InnerComponent extends Component<Props> {
+    private _unsubscribed = false;
+
+    componentDidMount() {
+      if (once && !this._unsubscribed) {
+        this._unsubscribed = true;
+        this.props.unsubscribe();
+      }
+    }
+
+    render () {
+      const {unsubscribe: _, _tweekProps, ...props} = this.props;
+
+      let tweekProps: {};
+      if (isScanKey) {
+        tweekProps = mergeProps ? _tweekProps : { [propName || 'tweek']: _tweekProps };
+      } else {
+        const configName = path.split('/').pop();
+        tweekProps = mergeProps
+          ? { [propName || camelize(configName)]: _tweekProps }
+          : { [propName || 'tweek']: { [camelize(configName)]: _tweekProps } };
+      }
+
+      return <BaseComponent {...props} {...tweekProps} />;
+    }
+  }
+
+  const EnhancedComponent = enhance(InnerComponent);
+
+  return class WithTweekKeys extends Component<{}, {tweekProps: any}> {
+    static displayName = `withTweekKeys(${BaseComponent.displayName || BaseComponent.name || 'Component'})`;
     static contextTypes = {
       [repoKey]: PropTypes.object,
     };
 
-    state = {tweekProps: undefined};
-    subscription: ZenObservable.Subscription | null = null;
-
-    componentWillMount() {
-      if (initialValue !== undefined) {
-        this.setTweekValue(isScanKey ? initialValue : { value: initialValue });
-      }
-
-      this.subscription = this.context[repoKey].observe(path, getPolicy).subscribe(
-        result => {
-          this.setTweekValue(result);
-          if (once) {
-            this.unsubscribe();
-          }
-        },
-        error => {
-          if (onError) onError(error);
-          else console.error(error);
-          this.unsubscribe();
-        },
-      );
-    }
-
-    componentWillUnmount() {
-      this.unsubscribe();
-    }
-
-    unsubscribe() {
-      this.subscription && this.subscription.unsubscribe();
-      this.subscription = null;
-    }
-
-    setTweekValue = (result: any = {}) => {
-      let tweekProps;
-
-      if (isScanKey) {
-        tweekProps = mergeProps ? result : { [propName || 'tweek']: result };
-      } else {
-        const configName = path.split('/').pop();
-        tweekProps = mergeProps
-          ? { [propName || camelize(configName)]: result.value }
-          : { [propName || 'tweek']: { [camelize(configName)]: result.value } };
-      }
-      this.setState({ tweekProps });
-    };
-
-    shouldComponentUpdate(nextProps, nextState) {
-      return !isEqual(this.props, nextProps) || !isEqual(this.state.tweekProps, nextState.tweekProps);
-    }
-
     render() {
-      return this.state.tweekProps ? <EnhancedComponent {...this.props} {...this.state.tweekProps} /> : null;
+      return <EnhancedComponent tweekRepository={this.context[repoKey]} {...this.props} />
     }
   };
 };
